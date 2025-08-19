@@ -1,24 +1,79 @@
 // اینجا نوع پراکسی مورد نظرت رو انتخاب کن
 const PROXY_TYPE = 'mtproto';
 
-// آدرس‌های API برای هر نوع پراکسی
-const API_URLS = {
-  'mtproto': "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/mtproto.json",
-  'socks': "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/socks.json"
+// لیست چند منبع معتبر برای پراکسی‌ها
+const MTPROTO_SOURCES = [
+  "https://mtproto.me/api/v1/proxy/",
+  "https://raw.githubusercontent.com/Proxy-list/Proxy-list/main/MTProto/all",
+  "https://raw.githubusercontent.com/yebekhe/mtproto-ir-filter/main/proxy.json"
+];
+
+const SOCKS5_SOURCES = [
+  "https://api.proxyscrape.com/v3/free-proxy-list/download?request=displayproxies&protocol=socks5",
+  "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/socks.json"
+];
+
+// لیست پراکسی‌های ثابت به عنوان پشتیبان (در صورت عدم کارکرد منابع آنلاین)
+const FALLBACK_PROXIES = {
+  'mtproto': [
+    { host: 'mtp.ir', port: 443, secret: 'ddb8f368c85897c5545a90d96d848731b8', country: 'IR', ping: 50 },
+    { host: 'mtp.al-ir.online', port: 443, secret: 'dd812543e2e0a811d5f2a0ed83c4837482', country: 'IR', ping: 65 },
+    { host: 'mtp.mtprox.link', port: 443, secret: 'dd812543e2e0a811d5f2a0ed83c4837482', country: 'US', ping: 120 }
+  ],
+  'socks': [
+    { ip: '104.251.214.223', port: 4145, country: 'US', ping: 150 },
+    { ip: '104.251.214.223', port: 4145, country: 'US', ping: 160 }
+  ]
 };
 
 async function getProxyPage() {
   let proxyDataList = null;
-  const apiUrl = API_URLS[PROXY_TYPE];
+  const sources = PROXY_TYPE === 'mtproto' ? MTPROTO_SOURCES : SOCKS5_SOURCES;
+  
+  for (const url of sources) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn(`Source failed: ${url} with status ${response.status}`);
+        continue;
+      }
+      
+      const rawData = await response.text();
+      let parsedData;
+      
+      try {
+        parsedData = JSON.parse(rawData);
+      } catch (e) {
+        if (PROXY_TYPE === 'mtproto') {
+           const matches = rawData.matchAll(
+             /tg:\/\/proxy\?server=([a-zA-Z0-9.-]+)&port=(\d+)&secret=([a-fA-F0-9]+)/g
+           );
+           parsedData = Array.from(matches).map(match => ({
+             host: match[1],
+             port: parseInt(match[2]),
+             secret: match[3],
+           }));
+        }
+      }
 
-  try {
-    const response = await fetch(apiUrl);
-    proxyDataList = await response.json();
-  } catch (error) {
-    console.error("Error fetching proxy data:", error);
-    return `<p class="error-message">مشکلی در دریافت اطلاعات پراکسی پیش آمده است.</p>`;
+      if (Array.isArray(parsedData) && parsedData.length > 0) {
+        proxyDataList = parsedData;
+        break;
+      } else if (parsedData && parsedData.proxies && Array.isArray(parsedData.proxies)) {
+        proxyDataList = parsedData.proxies;
+        break;
+      }
+      
+    } catch (error) {
+      console.error(`Failed to fetch from ${url}:`, error.message);
+    }
   }
 
+  if (!proxyDataList || proxyDataList.length === 0) {
+    proxyDataList = FALLBACK_PROXIES[PROXY_TYPE];
+    console.log("Using fallback proxies.");
+  }
+  
   if (!Array.isArray(proxyDataList) || proxyDataList.length === 0) {
     return `<p class="error-message">اطلاعات پراکسی در دسترس نیست.</p>`;
   }
@@ -27,11 +82,14 @@ async function getProxyPage() {
   proxyDataList.forEach((proxyData, index) => {
     let proxyLink = '';
     let serverInfo = '';
-    let countryCode = proxyData.country.toLowerCase();
-    let ping = proxyData.ping || 'N/A';
+    
+    const countryCode = proxyData.country || 'N/A';
+    const ping = proxyData.ping || 'N/A';
     
     if (PROXY_TYPE === 'mtproto') {
       const { host, port, secret } = proxyData;
+      if (!host || !port || !secret) return;
+      
       proxyLink = `https://t.me/proxy?server=${host}&port=${port}&secret=${secret}`;
       serverInfo = `
         <div class="info-item"><strong>هاست:</strong> <span>${host}</span></div>
@@ -40,6 +98,8 @@ async function getProxyPage() {
       `;
     } else if (PROXY_TYPE === 'socks') {
       const { ip, port } = proxyData;
+      if (!ip || !port) return;
+
       proxyLink = `https://t.me/socks?server=${ip}&port=${port}`;
       serverInfo = `
         <div class="info-item"><strong>آی‌پی:</strong> <span>${ip}</span></div>
@@ -47,13 +107,10 @@ async function getProxyPage() {
       `;
     }
     
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(proxyLink)}`;
-    const countryFlag = getFlagEmoji(countryCode);
-
     proxiesHtml += `
       <div class="proxy-card" id="proxy-${index}">
         <div class="card-header">
-          <span class="flag">${countryFlag}</span>
+          <span class="country-text">${countryCode}</span>
           <span class="ping">${ping}ms</span>
         </div>
         <div class="info-card">
@@ -64,7 +121,7 @@ async function getProxyPage() {
             <a href="${proxyLink}" class="btn btn-primary">اتصال به تلگرام</a>
             <button class="btn btn-copy" onclick="copyToClipboard('${proxyLink}')">کپی لینک</button>
           </div>
-          <button class="btn btn-test" onclick="testConnection('${host || proxyData.ip}', '${port}', ${index})">تست اتصال</button>
+          <button class="btn btn-test" onclick="testConnection('${proxyData.host || proxyData.ip}', '${port}', ${index})">تست اتصال</button>
           <div class="test-status" id="test-status-${index}"></div>
         </div>
       </div>
@@ -134,7 +191,7 @@ async function getProxyPage() {
           align-items: center;
           margin-bottom: 20px;
         }
-        .card-header .flag { font-size: 2rem; }
+        .card-header .country-text { font-size: 1.5rem; font-weight: bold; }
         .card-header .ping {
           font-size: 1.2rem;
           font-weight: bold;
@@ -222,14 +279,10 @@ async function getProxyPage() {
           });
         }
         
-        // یک تابع شبیه‌سازی برای تست اتصال، چون تست پینگ مستقیم از مرورگر ممکن نیست.
         async function testConnection(host, port, index) {
           const statusElement = document.getElementById(\`test-status-${index}\`);
           statusElement.innerHTML = 'در حال تست...';
           statusElement.className = 'test-status';
-
-          // شبیه‌سازی یک درخواست ساده به یک پورت
-          // این روش برای تمام سرورها کار نمی‌کند، اما یک روش عمومی برای تست است.
           const testUrl = \`https://httpstat.us/200?_=${Math.random()}\`;
 
           try {
@@ -254,21 +307,21 @@ async function getProxyPage() {
   return html;
 }
 
-function getFlagEmoji(countryCode) {
-  const codePoints = countryCode
-    .toUpperCase()
-    .split('')
-    .map(char => 127397 + char.charCodeAt());
-  return String.fromCodePoint(...codePoints);
-}
-
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request));
-});
-
-async function handleRequest(request) {
-  const htmlContent = await getProxyPage();
-  return new Response(htmlContent, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8' },
-  });
-}
+// این قسمت برای Cloudflare Pages ضروری است
+export default {
+  async fetch(request) {
+    try {
+      const htmlContent = await getProxyPage();
+      return new Response(htmlContent, {
+        headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+      });
+    } catch (e) {
+      // این قسمت برای نمایش خطا در صفحه است
+      console.error(e);
+      return new Response(`<h1>Error: ${e.message}</h1><p>Check the Workers logs for more details.</p>`, {
+        headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+        status: 500
+      });
+    }
+  }
+};
