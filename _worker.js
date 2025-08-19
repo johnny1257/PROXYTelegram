@@ -86,6 +86,7 @@ async function getProxyPage() {
     const countryCode = proxyData.country || 'N/A';
     const ping = proxyData.ping || 'N/A';
     
+    // Check for required properties before using them
     if (PROXY_TYPE === 'mtproto') {
       const { host, port, secret } = proxyData;
       if (!host || !port || !secret) return;
