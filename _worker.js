@@ -83,12 +83,15 @@ async function getProxyPage() {
     let proxyLink = '';
     let serverInfo = '';
     
+    // Default values to prevent errors
+    const host = proxyData.host || proxyData.ip;
+    const port = proxyData.port;
+    const secret = proxyData.secret;
     const countryCode = proxyData.country || 'N/A';
     const ping = proxyData.ping || 'N/A';
     
     // Check for required properties before using them
     if (PROXY_TYPE === 'mtproto') {
-      const { host, port, secret } = proxyData;
       if (!host || !port || !secret) return;
       
       proxyLink = `https://t.me/proxy?server=${host}&port=${port}&secret=${secret}`;
@@ -98,12 +101,11 @@ async function getProxyPage() {
         <div class="info-item"><strong>سکرت:</strong> <span>${secret}</span></div>
       `;
     } else if (PROXY_TYPE === 'socks') {
-      const { ip, port } = proxyData;
-      if (!ip || !port) return;
+      if (!host || !port) return;
 
-      proxyLink = `https://t.me/socks?server=${ip}&port=${port}`;
+      proxyLink = `https://t.me/socks?server=${host}&port=${port}`;
       serverInfo = `
-        <div class="info-item"><strong>آی‌پی:</strong> <span>${ip}</span></div>
+        <div class="info-item"><strong>آی‌پی:</strong> <span>${host}</span></div>
         <div class="info-item"><strong>پورت:</strong> <span>${port}</span></div>
       `;
     }
@@ -122,7 +124,7 @@ async function getProxyPage() {
             <a href="${proxyLink}" class="btn btn-primary">اتصال به تلگرام</a>
             <button class="btn btn-copy" onclick="copyToClipboard('${proxyLink}')">کپی لینک</button>
           </div>
-          <button class="btn btn-test" onclick="testConnection('${proxyData.host || proxyData.ip}', '${port}', ${index})">تست اتصال</button>
+          <button class="btn btn-test" onclick="testConnection('${host}', '${port}', ${index})">تست اتصال</button>
           <div class="test-status" id="test-status-${index}"></div>
         </div>
       </div>
