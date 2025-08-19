@@ -2,7 +2,6 @@
 const PROXY_TYPE = 'mtproto';
 
 // لیست چند منبع معتبر برای پراکسی‌ها
-// اینها لینک‌هایی هستند که شما ارائه کردید
 const MTPROTO_SOURCES = [
   "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/mtproto.json",
   "https://core.telegram.org/cdn-cgi/resources/mtproxies.json"
