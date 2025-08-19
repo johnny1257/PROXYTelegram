@@ -2,15 +2,15 @@
 const PROXY_TYPE = 'mtproto';
 
 // لیست چند منبع معتبر برای پراکسی‌ها
+// اینها لینک‌هایی هستند که شما ارائه کردید
 const MTPROTO_SOURCES = [
-  "https://mtproto.me/api/v1/proxy/",
-  "https://raw.githubusercontent.com/Proxy-list/Proxy-list/main/MTProto/all",
-  "https://raw.githubusercontent.com/yebekhe/mtproto-ir-filter/main/proxy.json"
+  "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/mtproto.json",
+  "https://core.telegram.org/cdn-cgi/resources/mtproxies.json"
 ];
 
 const SOCKS5_SOURCES = [
-  "https://api.proxyscrape.com/v3/free-proxy-list/download?request=displayproxies&protocol=socks5",
-  "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/socks.json"
+  "https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/socks.json",
+  "https://api.proxyscrape.com/v3/free-proxy-list/download?request=displayproxies&protocol=socks5"
 ];
 
 // لیست پراکسی‌های ثابت به عنوان پشتیبان (در صورت عدم کارکرد منابع آنلاین)
@@ -78,8 +78,19 @@ async function getProxyPage() {
     return `<p class="error-message">اطلاعات پراکسی در دسترس نیست.</p>`;
   }
 
+  // Filter out any invalid proxy objects
+  const filteredProxyDataList = proxyDataList.filter(proxyData => {
+    if (!proxyData) return false;
+    if (PROXY_TYPE === 'mtproto') {
+      return proxyData.host && proxyData.port && proxyData.secret;
+    } else if (PROXY_TYPE === 'socks') {
+      return proxyData.ip && proxyData.port;
+    }
+    return false;
+  });
+
   let proxiesHtml = '';
-  proxyDataList.forEach((proxyData, index) => {
+  filteredProxyDataList.forEach((proxyData, index) => {
     let proxyLink = '';
     let serverInfo = '';
     
@@ -90,10 +101,8 @@ async function getProxyPage() {
     const countryCode = proxyData.country || 'N/A';
     const ping = proxyData.ping || 'N/A';
     
-    // Check for required properties before using them
+    // Use the filtered data, so no extra checks are needed here
     if (PROXY_TYPE === 'mtproto') {
-      if (!host || !port || !secret) return;
-      
       proxyLink = `https://t.me/proxy?server=${host}&port=${port}&secret=${secret}`;
       serverInfo = `
         <div class="info-item"><strong>هاست:</strong> <span>${host}</span></div>
@@ -101,8 +110,6 @@ async function getProxyPage() {
         <div class="info-item"><strong>سکرت:</strong> <span>${secret}</span></div>
       `;
     } else if (PROXY_TYPE === 'socks') {
-      if (!host || !port) return;
-
       proxyLink = `https://t.me/socks?server=${host}&port=${port}`;
       serverInfo = `
         <div class="info-item"><strong>آی‌پی:</strong> <span>${host}</span></div>
